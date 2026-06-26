@@ -8,6 +8,8 @@
 
 ## Detection Signals
 
+- order doesn't matter - all 3 run anyway
+
 ## Confidence Scores
 
 ## Transparency Labels
