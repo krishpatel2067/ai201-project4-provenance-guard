@@ -1,3 +1,15 @@
 {
-  "cSpell.words": ["Stylometric"]
+  "cSpell.words": ["stylometric"],
+  "cSpell.languageSettings": [
+    {
+      "languageId": "markdown",
+      "caseSensitive": true,
+      "words": ["Groq", "Gini"]
+    },
+    {
+      "languageId": "python",
+      "caseSensitive": true,
+      "words": ["groq"]
+    },
+  ]
 }

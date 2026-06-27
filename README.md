@@ -22,6 +22,10 @@
 
 ## Known Limitations
 
+- None of the thresholds chosen empirically
+- Metadata was synthesized, but its structure can be generalizable and can plug into a fully fledged frontend text editor
+- No auth - simply IDs
+
 ## Spec Reflection
 
 ## AI Usage

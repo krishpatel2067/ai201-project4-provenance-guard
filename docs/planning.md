@@ -2,24 +2,336 @@
 
 ## Detection Signals
 
+- Each detection outputs a score between 0-1 (each upper bound below except 1.0 is exclusive):
+  - 0.0-0.4: Likely AI
+  - 0.4-0.6: Uncertain
+  - 0.6-1.0: Likely human
+
+Detection-specific details in:
+
+- [`det1-llm.md`](./det1-llm.md)
+- [`det2-stylo-heuristics.md`](./det2-stylo-heuristics.md)
+- [`det3-pos-dist.md`](./det3-pos-dist.md)
+
 ## Confidence Scores
 
-## Transparency Labels
+- The 3 detection signal scores will be combined into a single confidence score via weighting.
+- Same breakdown for the combined score:
+
+```
+  0                          0.4             0.6                         1.0
+  |---------------------------|-------|-------|---------------------------|
+Likely AI                     +-- Uncertain --+                  Likely human
+```
+
+- Weights used to combine the signal scores:
+
+| Signal             | Weight | Reason                                                                               |
+| ------------------ | ------ | ------------------------------------------------------------------------------------ |
+| `llm`              | 0.40   | Context and semantics are powerful indicators of AI generation                       |
+| `stylo_heuristics` | 0.30   | Similar importance to `llm` for covering its major blind spot: structure             |
+| `pos_dist`         | 0.30   | Similarly rigid as `stylo_heuristics` - works well for most cases but misses context |
+
+## Labels
+
+- Return a machine-friendly label and non-technical user-friendly label corresponding to the confidence score.
+- Classifications, labels, and transparency labels:
+  - **Likely AI**: `likely_ai` - "This content appears to be partially or fully AI-generated."
+  - **Uncertain**: `uncertain` - "We're not sure whether this content was AI-generated."
+  - **Likely human**: `likely_human` - "This content appears human-made." (Different transparency label if provenance certificate is successfully granted.)
+
+## Provenance Certificate
+
+- Creators can apply for a provenance ("verified human") certificate for a particular content if:
+  - They express their intent (via the `GET /verified-human-certificate`)
+  - They used the first-party in-app editor to write their entire draft
+  - They did not paste anything from outside the app while editing the draft
+  - They spent reasonably enough time in the editor across a reasonable number of sessions
+  - Their content that contains no watermarks
+  - Their content passes plagiarism tests
+- Advantage:
+  - Boosts their confidence score
+  - If the resulting score is in the likely-human range, then a special "verified" transparency label that carries more weight than a "likely human" one: "Verified human - this content is most likely human-made."
+  - Score boosting function: `1 - (1 - score)^3.25` (0 -> 0, 1 -> 1, low scores boosted more significantly)
+- Metadata format with values needed to get certificate (at least 3 sessions of an hour each are required):
+
+  ```json
+  {
+    "platform": "desktop_app",
+    "pastes_from_elsewhere": 0,
+    "sessions": [
+      {
+        "start": "<ISO time stamp>",
+        "end": "<ISO time stamp>"
+      }
+    ]
+  }
+  ```
+
+- Reasons for the requirements:
+  - **First-party in-app editor**: The hypothetical first-party app would have an editor to track info necessary to distinguish human creation (keystrokes, copy-pastes, session lengths, etc.). It would also have deeper permissions than a web app, allowing more secure data collection and lowering the chances of client-side metadata tampering
+  - **Copy-pasting**: A true human creation most often doesn't require copy-pasting from outside sources - it should all be organically typed.
+  - **Session time and count**: Genuine human creations take a lot of time to make and usually multiple sessions for inspiration to strike and iterate on the draft - much different than the few minutes of AI-generation and proofreading in a single session.
+  - **Watermarks**: A hidden watermark that AI can embed into its output text is zero-width Unicode characters - not rendered at all but exist in the raw string, which couldn't be typed naturally let alone when humans write creative works
+  - **Plagiarism tests**: Human works are usually original works if the author doesn't consult outside sources, especially AI. One caveat: can't check against private chats.
 
 ## Appeals
 
+- Any content creator will be able to appeal to re-evaluate their content for all classifications (i.e. not just falsely labeled as AI-generated)
+- Content creators will not be able to submit appeals for content that is already under review
+- Need to provide:
+  - Particular content in question (frontend would get the corresponding ID)
+  - Desired label
+  - Reason for appealing and why the desired label should be used instead
+- When an appeal is received:
+  - Immediately reject if the desired label is invalid or the same as the current label
+  - Otherwise, store it in the `appeals` database
+  - Update the corresponding content's status to "Under review"
+  - Add a log entry for receiving the appeal and changing the content status
+- A human reviewer would query the `appeals` database (either directly or via an interface) to chronologically see and handle the appeals
+
 ## Rate Limiting
+
+- Rate limiting will be per creator (using the creator ID).
+- Rate limiting will count even when requests are rejected for any reason for maximal server protection.
+- Per-endpoint rate limiting:
+
+  | Endpoint         | Per Min | Per Day | Reason                                                                                            |
+  | ---------------- | ------- | ------- | ------------------------------------------------------------------------------------------------- |
+  | `POST /appeals`  | 3       | 18      | Similar to content limits; some higher headroom for appealing older content                       |
+  | `POST /content`  | 3       | 15      | Content requires time to make; low limit is reasonable; some leeway for retrying invalid requests |
+  | `POST /creators` | 1       | 5       | Very low limit since account is ideally created once per person; some leeway for invalid requests |
 
 ## Logging
 
+- Logging will be stored in a `logs` database in a JSONL format (unlike SQLite tables for the other databases) to allow nested objects.
+- Log entries will be created when:
+  - New content is submitted.
+  - New appeal request is created.
+  - New creator account is created.
+  - Any request is rejected for invalid input.
+- Log entries will _not_ be created when:
+  - Rate limiting kicks in and rejects a request. This should be stored elsewhere to avoid flooding the logs yet monitoring any potential attacks.
+
+## Databases
+
+- Three databases to store key info:
+  - `content`: SQLite database - Stores the actual text content and metadata submitted by users.
+  - `creators`: SQLite database - Holds creator info (proxy for account info) for attribution and rate limiting
+  - `appeals`: SQLite database - Stores appeal requests submitted by users.
+  - `logs`: JSONL file - Store log entries of every submission's evaluation and appeal request as they arrive.
+
+### `content` Schema
+
+```json
+[
+  {
+    "content_id": "str - ID of the content",
+    "submitted_at": "str - Timestamp of submission",
+    "content": "str - User-submitted content",
+    "metadata": "str - JSON string of content metadata",
+    "status": "str - One of: submitted, under_review",
+    "llm_score": "float - Detection signal 1 (LLM) score",
+    "stylo_heuristics_score": "float - Detection signal 2 (Stylometric heuristics) score",
+    "pos_dist_score": "float - Detection signal 3 (Part-of-speech distribution) score",
+    "confidence_score": "float - Combined score from detection signals",
+    "label": "str - One of: likely_ai, uncertain, likely_human",
+    "transparency_label": "str - Transparency label based on confidence score or provenance certificate",
+    "verified_human": "bool - Whether content has successfully been granted a provenance certificate"
+  },
+  ...
+]
+```
+
+### `creators` Schema
+
+```json
+[
+  {
+    "creator_id": "str - ID of the creator",
+    "joined_at": "str - Timestamp of account creation",
+    "email": "str - Creator's email address"
+  },
+  ...
+]
+```
+
+### `appeals` Schema
+
+```json
+[
+  {
+    "appeal_id": "str - ID of the appeal",
+    "content_id": "str - Corresponding content ID",
+    "appealed_at": "str - Timestamp of appeal submission",
+    "desired_label": "str - One of: likely_ai, uncertain, likely_human",
+    "reason": "str - User's reason for appealing"
+  },
+  ...
+]
+```
+
+### `logs` Schema
+
+```json
+[
+  {
+    "log_id": "str - ID of the log",
+    "message": "str - Message describing the log entry",
+    "body": "dict - Corresponding object created, updated, etc."
+  },
+  ...
+]
+```
+
+For example:
+
+```json
+[
+  {
+    "log_id": "168a93e6-54f5-43d3-b3c7-8dce155107cc",
+    "message": "Stored new appeal",
+    "body": {
+      "appeal_id": "bf056077-1608-4225-88af-261108678130",
+      "content_id": "e88acb50-fd94-490b-b1cd-1023c9fc1f79",
+      "appealed_at": "2026-06-27T11:51:14.997479",
+      "desired_label": "likely_human",
+      "reason": "Test appeal request"
+    }
+  },
+  ...
+]
+```
+
+## Endpoints
+
+Info in [`endpoints.md`](./endpoints.md).
+
+## Monitoring Dashboard
+
+- Will be built on Gradio UI.
+- No rate limiting since it is intended purely for internal use.
+- Will contain visualizations, and logs:
+  - **Visualizations**: ratio of human vs AI verdicts, appeal rate over time, size of content uploaded over time
+  - **Logs**: separate panel displaying all the logs from the database
+
 ## Architecture
+
+### Submission Flow
+
+```
+                                POST /content
+                                     |
+                       Content       |
+                 + metadata payload  |
+                                     v
+       400 response <-----------  Backend  ------------> 429 response
+                        Invalid      |       Surpassed
+                         input       |       rate limit
+                                     |
+      --------------------------------
+      |
+      v
+>> (content)                   >> (content)                    >> (content)
+Signal 1: llm  ------>  Signal 2: stylo_heuristics  ------>  Signal 3: pos_dist
+      |                              |                                |
+      |                              |                                |
+      --------------->-------------------------------<-----------------
+                                     |
+                        Individual   |
+                      signal scores  |
+                                     v
+                              Combine scores
+                            (weighted average)
+                                     |
+                                     v
+                              Apply certificate
+                             if requirements met
+                          (boost confidence score)
+                                     |
+                                     v
+                            Transparency label
+                                     |
+                                     v
+                               Store content
+                                (content db)
+                                     |
+                                     v
+                              Log submission
+                                 (logs db)
+                                     |
+                                     v
+                               201 response
+```
+
+### Account Creation Flow
+
+```
+    POST /creator
+         |
+         v
+      Backend
+         |
+         |         Invalid input
+         +----------------------------> 400 response
+         |
+         |  OK
+         |
+         v
+    Store creator
+    (creators db)
+         |
+         v
+    Log account
+      creation
+         |
+         v
+    201 response
+```
+
+### Appeal Flow
+
+```
+    POST /appeals
+         |
+         v
+      Backend
+         |
+         |     Invalid input
+         +------------------------> 400 response
+         |
+         +---------------------------------------> 429 response
+         |     Rate limit surpassed
+         |
+         |  OK
+         |
+         v
+       Update
+    content status
+         |
+         v
+    Store appeal
+    (appeals db)
+         |
+         v
+     Log appeal
+         |
+         v
+    201 response
+```
 
 ## Anticipated Edge Cases
 
+- While three detections signals are powerful, careful calibration is required via pre-labeled data.
+- The current setup uses reasonable assumptions, which may be vulnerable to edge cases
+- Specific anticipated scenarios where the detection pipeline is wrong:
+  - A human-written poem that is intentionally and artistically chosen to use heavy repetition and simple vocabulary may be wrongly classified as AI-generated.
+  - A short story generated by AI through careful prompting may use complex vocabulary and sentences of varying lengths, which may be incorrectly classified as human-made.
+
 ## AI Tool Plan
 
-**M3 (submission endpoint + first signal)**:
+**M3 (submission endpoint + first signal)**: I will provide my AI tool my `llm` detection signal section, submission architecture diagram, and submission endpoint design section. I will ask it to generate a Flask app skeleton and the `llm` signal function. I will verify the output by testing with a few inputs directly before wiring into the submission endpoint.
 
-**M4 (second signal + confidence scoring)**:
+**M4 (second signal + confidence scoring)**: I will provide my AI tools the sections for the rest of the detection signals (`stylo_heuristics` and `pos_dist`) as well as the confidence score section. I will ask it to generate the rest of the signal functions and confidence scoring logic. I will verify the output by testing if scores vary meaningfully between clearly AI and clearly human text via example content - while monitoring the logs to see how weights need to be calibrated to get the desired output.
 
-**M5 (production layer)**:
+**M5 (production layer)**: I will provide my AI tool my label section, appeals workflow diagram, and appeals endpoint section. I will ask it to generate label generation logic and implement the appeals endpoint. I will verify the output by testing that all three label variants are reachable and that an appeal updates content status correctly.

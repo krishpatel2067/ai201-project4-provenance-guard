@@ -2,7 +2,7 @@
 
 ## Architecture Narrative
 
-Submit workflow:
+Content workflow:
 
 1. User submits their textual work (e.g. story, poem, etc.).
 2. Contact backend at `POST /submit` with textual work as payload.
@@ -17,7 +17,7 @@ Submit workflow:
 Appeal workflow:
 
 1. User appeals labeling decision for a particular content.
-2. Accept `POST /appeal` request at backend.
+2. Accept `POST /appeals` request at backend.
 3. Check rate limit. If exceeded, return `429`.
 4. Otherwise, mark content with given ID "under review".
 5. Log appeal interaction, especially "under review" status.
@@ -54,25 +54,26 @@ Use Groq to identify if a piece of text is AI-generated.
 - Tighter vocabulary (type-token ratio/lexical diversity)
 - Less varied sentence lengths
 - Less punctuation diversity
-- Less perplexity (common words used more often)
+- Common words more often
 - More heading and bullet point use
 - More evenly-sized paragraphs
 - More exclamation points, emojis, etc.
 
 **Blind spot**: Completely misses context and semantics. A poem intentionally chosen to sound robotic for artistic purposes will be incorrectly flagged as AI-generated.
 
-### 3. Metadata
+### 3. Part-Of-Speech Distribution
 
-**Property**: Some indicators that distinguish AI-generated creative works:
+**Property**: AI work tends to use certain parts-of-speech more than others, leading to distinct, telltale ratios. Specifically, AI content is often:
 
-- Contains a watermark - clear giveaway
-- Takes very little time to create (e.g. between first keystroke and submission)
-- Contains little to no revision history
-- Involves more frequent and heavier copy-pasting
+- More objective and descriptive, less personal (higher adjective-to-pronoun ratio)
+- More neutral, less direct (higher passive construction percentage)
+- More informative, less dynamic (higher noun-to-verb ratio)
+- More tempered (higher comparative-to-superlative ratio)
+- More formally structured (higher use of coordinating and subordinating conjunctions)
 
-**Blind spot**: Completely unaware about the data itself (e.g. the story, poem, etc.). Possible tampering of metadata from frontend to backend can skew the classification.
+**Blind spot**: Completely misses context. Plus, some authors may naturally write in a way that this signal classifies as AI-generated.
 
-## Confidence Scores & Transparency Labels
+## Confidence Scores and Transparency Labels
 
 - Each detection signal returns its own score, which is combined via weighting.
 - Final score: between 0-1:
@@ -82,7 +83,7 @@ Use Groq to identify if a piece of text is AI-generated.
 - Besides the middle band, the continuity of the confidence score reflects certainty: the closer to 0 or 1 it is, the more certain.
 - Each classification will get a non-technical transparency label - something like:
   - "This content appears to be partially or fully AI-generated."
-  - "We're not sure if this content was AI-generated."
+  - "We're not sure whether this content was AI-generated."
   - "This content appears human-made."
 
 ## Appeals
@@ -95,7 +96,7 @@ Use Groq to identify if a piece of text is AI-generated.
 Submission flow:
 
 ```
-POST /submit
+POST /content
    |
    |    Content, metadata payload
    v
@@ -109,7 +110,7 @@ Signal 1: LLM
 Signal 2: Stylometric heuristics
    |
    v
-Signal 3: Metadata
+Signal 3: POS distribution
    |
    |    All signal scores
    v
@@ -132,7 +133,7 @@ Response
 Appeal flow:
 
 ```
-POST /appeal
+POST /appeals
    |
    |    Content ID, creator ID, desired label, reason payload
    v
