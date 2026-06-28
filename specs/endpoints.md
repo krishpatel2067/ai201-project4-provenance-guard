@@ -48,6 +48,7 @@ Invalid inputs:
 - Content of given ID not found
 - Invalid desired label
 - Desired label matches current label
+- Reason is empty
 - Reason too long (more than 2500 characters)
 
 #### 401: Unauthorized
@@ -136,7 +137,7 @@ When creator ID is missing from the header or invalid.
 }
 ```
 
-## `POST /creator`
+## `POST /creators`
 
 ### Body Schema
 
@@ -171,3 +172,11 @@ Invalid inputs:
 - Missing required fields
 - Invalid format for email address
 - Email address already exists
+
+#### 429: Too Many Requests
+
+```json
+{
+  "message": "str - Error message"
+}
+```

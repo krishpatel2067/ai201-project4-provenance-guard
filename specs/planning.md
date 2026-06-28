@@ -1,5 +1,7 @@
 # Planning
 
+This project involves building the backend of a creative writing platform, complete with multi-signal detection of how likely creator content is AI-generated or human-made - a continuous confidence score that has inherently conveys uncertainty. This confidence score is translated to non-technical labels to help users understand the content's classification. Other features of the backend include data storage for persistence, logging for accountability, and rate limiting for protection.
+
 ## Detection Signals
 
 - Each detection outputs a score between 0-1 (each upper bound below except 1.0 is exclusive):
@@ -92,15 +94,17 @@ Likely AI                     +-- Uncertain --+                  Likely human
 
 ## Rate Limiting
 
-- Rate limiting will be per creator (using the creator ID).
 - Rate limiting will count even when requests are rejected for any reason for maximal server protection.
 - Per-endpoint rate limiting:
 
-  | Endpoint         | Per Min | Per Day | Reason                                                                                            |
-  | ---------------- | ------- | ------- | ------------------------------------------------------------------------------------------------- |
-  | `POST /appeals`  | 3       | 18      | Similar to content limits; some higher headroom for appealing older content                       |
-  | `POST /content`  | 3       | 15      | Content requires time to make; low limit is reasonable; some leeway for retrying invalid requests |
-  | `POST /creators` | 1       | 5       | Very low limit since account is ideally created once per person; some leeway for invalid requests |
+  | Endpoint         | Auth Proxy | Per Min | Per Day | Reason                                                                                            |
+  | ---------------- | ---------- | ------- | ------- | ------------------------------------------------------------------------------------------------- |
+  | `POST /appeals`  | Creator ID | 3       | 18      | Similar to content limits; some higher headroom for appealing older content                       |
+  | `POST /content`  | Creator ID | 3       | 15      | Content requires time to make; low limit is reasonable; some leeway for retrying invalid requests |
+  | `POST /creators` | IP address | 1       | 5       | Very low limit since account is ideally created once per person; some leeway for invalid requests |
+
+- Note: `POST /creators` needs to use the IP address for individual rate limiting because the current creator's ID has not been yet. That endpoint itself creates the creator ID used by the rate limiting at the other endpoints.
+- One person may have multiple creator accounts, allowing for higher rate limit per person, so it is in the best interest to use creator ID for most endpoints in stead of IP address (which is usually the same for the same person).
 
 ## Logging
 
@@ -119,6 +123,7 @@ Likely AI                     +-- Uncertain --+                  Likely human
   - `content`: SQLite database - Stores the actual text content and metadata submitted by users.
   - `creators`: SQLite database - Holds creator info (proxy for account info) for attribution and rate limiting
   - `appeals`: SQLite database - Stores appeal requests submitted by users.
+  - `rate_limits`: SQLite database - Stores rate limiting info by creator ID for most endpoints or IP address on the `POST /creators` endpoint in which the creator ID is yet to be created.
   - `logs`: JSONL file - Store log entries of every submission's evaluation and appeal request as they arrive.
 
 ### `content` Schema
@@ -143,6 +148,8 @@ Likely AI                     +-- Uncertain --+                  Likely human
 ]
 ```
 
+**Primary key**: `content_id`
+
 ### `creators` Schema
 
 ```json
@@ -155,6 +162,8 @@ Likely AI                     +-- Uncertain --+                  Likely human
   ...
 ]
 ```
+
+**Primary key**: `creator_id`
 
 ### `appeals` Schema
 
@@ -171,6 +180,26 @@ Likely AI                     +-- Uncertain --+                  Likely human
 ]
 ```
 
+**Primary key**: `"appeal_id"`
+
+### `rate_limits` Schema
+
+```json
+[
+  {
+    "identity": "str - Creator ID on most endpoints or IP address on POST /creators endpoint",
+    "endpoint": "str - Endpoint on which to rate limit (e.g. `POST /creators`)",
+    "window_min": "str - Minute on which minute-based rate limiting applies",
+    "window_day": "str - Day on which day-based rate limiting applies",
+    "count_min": "str - Endpoint use count in the minute window",
+    "count_day": "str - Endpoint use count in the day window"
+  },
+  ...
+]
+```
+
+**Primary key**: `"identity"` and `"endpoint"` together
+
 ### `logs` Schema
 
 ```json
@@ -183,6 +212,8 @@ Likely AI                     +-- Uncertain --+                  Likely human
   ...
 ]
 ```
+
+**Primary key**: `log_id`
 
 For example:
 
@@ -267,7 +298,7 @@ Signal 1: llm  ------>  Signal 2: stylo_heuristics  ------>  Signal 3: pos_dist
 ### Account Creation Flow
 
 ```
-    POST /creator
+    POST /creators
          |
          v
       Backend
