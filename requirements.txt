@@ -3,3 +3,5 @@ flask-limiter==3.5.0
 groq==0.15.0
 python-dotenv==1.0.1
 textblob==0.20.0
+gradio==6.19.0
+pandas==3.0.3

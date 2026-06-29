@@ -243,13 +243,17 @@ For example:
 
 Info in [`endpoints.md`](./endpoints.md).
 
-## Monitoring Dashboard
+## Analytics Dashboard
 
 - Will be built on Gradio UI.
 - No rate limiting since it is intended purely for internal use.
-- Will contain visualizations, and logs:
-  - **Visualizations**: ratio of human vs AI verdicts, appeal rate over time, size of content uploaded over time
-  - **Logs**: separate panel displaying all the logs from the database
+- Will contain visualizations and logs:
+  - **Visualizations**:
+    - Label distribution (human vs AI vs uncertain verdicts)
+    - Appeals filed in the past week per hour
+    - Uploaded content size (number of characters) in the past week per hour
+  - **Logs**: Separate panel displaying all the logs from the database
+- Manual refresh button to update the metrics.
 
 ## Architecture
 
@@ -385,6 +389,19 @@ Signal 1: llm  ------>  Signal 2: stylo_heuristics  ------>  Signal 3: pos_dist
          |
          v
     200 response
+```
+
+### Analytics Dashboard Flow
+
+```
+Appeals db          Content db          Logs JSONL
+    |                   |                    |
+    |                   |                    |
+    ---------->---------+----------<----------
+                        |
+                        |
+                        v
+               Analytics dashboard
 ```
 
 ## Anticipated Edge Cases
