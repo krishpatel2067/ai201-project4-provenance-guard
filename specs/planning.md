@@ -102,9 +102,11 @@ Likely AI                     +-- Uncertain --+                  Likely human
   | `POST /appeals`  | Creator ID | 3       | 18      | Similar to content limits; some higher headroom for appealing older content                       |
   | `POST /content`  | Creator ID | 3       | 15      | Content requires time to make; low limit is reasonable; some leeway for retrying invalid requests |
   | `POST /creators` | IP address | 1       | 5       | Very low limit since account is ideally created once per person; some leeway for invalid requests |
+  | `GET /logs`      | Admin ID   | 10      | 100     | High ceiling for admin use; but not infinite in case of an admin account breach                   |
 
 - Note: `POST /creators` needs to use the IP address for individual rate limiting because the current creator's ID has not been yet. That endpoint itself creates the creator ID used by the rate limiting at the other endpoints.
 - One person may have multiple creator accounts, allowing for higher rate limit per person, so it is in the best interest to use creator ID for most endpoints in stead of IP address (which is usually the same for the same person).
+- Admin IDs are special creator IDs (all admins are creators).
 
 ## Logging
 
@@ -114,6 +116,8 @@ Likely AI                     +-- Uncertain --+                  Likely human
   - New appeal request is created.
   - New creator account is created.
   - Any request is rejected for invalid input.
+  - Any error or warning conditions occur in request handling and detection pipeline.
+  - Logs are accessed.
 - Log entries will _not_ be created when:
   - Rate limiting kicks in and rejects a request. This should be stored elsewhere to avoid flooding the logs yet monitoring any potential attacks.
 
@@ -131,7 +135,8 @@ Likely AI                     +-- Uncertain --+                  Likely human
 ```json
 [
   {
-    "content_id": "str - ID of the content",
+    "content_id": "str - Content ID",
+    "creator_id": "str - Creator ID",
     "submitted_at": "str - Timestamp of submission",
     "content": "str - User-submitted content",
     "metadata": "str - JSON string of content metadata",
@@ -257,10 +262,11 @@ Info in [`endpoints.md`](./endpoints.md).
                  + metadata payload  |
                                      v
        400 response <-----------  Backend  ------------> 429 response
-                        Invalid      |       Surpassed
-                         input       |       rate limit
-                                     |
-      --------------------------------
+                        Invalid     | |      Surpassed
+                         input      | |      rate limit
+                                    | |
+      ------------------------------- ---------------------------> 401 response
+      |                 OK            Unauthorized (no creator ID)
       |
       v
 >> (content)                   >> (content)                    >> (content)
@@ -331,6 +337,9 @@ Signal 1: llm  ------>  Signal 2: stylo_heuristics  ------>  Signal 3: pos_dist
          |     Invalid input
          +------------------------> 400 response
          |
+         |     Unauthorized (no creator ID)
+         +----------------------------------> 401 response
+         |
          +---------------------------------------> 429 response
          |     Rate limit surpassed
          |
@@ -349,6 +358,33 @@ Signal 1: llm  ------>  Signal 2: stylo_heuristics  ------>  Signal 3: pos_dist
          |
          v
     201 response
+```
+
+### Log Flow
+
+```
+    GET /appeals
+         |
+         v
+      Backend
+         |
+         |     Unauthorized (No admin ID)
+         +----------------------------------> 401 response
+         |
+         +---------------------------------------> 429 response
+         |     Rate limit surpassed
+         |
+         |  OK
+         |
+         v
+     Log access
+         |
+         v
+     Fetch logs
+    (logs JSONL)
+         |
+         v
+    200 response
 ```
 
 ## Anticipated Edge Cases

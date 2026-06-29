@@ -1,5 +1,66 @@
 # Endpoints
 
+## `GET /logs`
+
+### Query Params
+
+- `tail` - Default 5. Range 1-100. How many latest logs to return.
+
+### Header Schema
+
+```json
+{
+  "Bearer": "str - An admin ID (simulates auth) for log viewing permissions"
+}
+```
+
+### Response Schema
+
+#### 200: OK
+
+Response will contain 5 log entries.
+
+```json
+[
+  {
+    "log_id": "str - ID of the log",
+    "message": "str - Message describing the log entry",
+    "body": "dict - Corresponding object created, updated, etc."
+  },
+  ...
+]
+```
+
+#### 400: Bad Request
+
+```json
+{
+  "message": "str - Error message"
+}
+```
+
+Invalid inputs:
+
+- Non-integer for query param `tail`
+
+#### 401: Unauthorized
+
+If the admin ID is missing from the header or invalid.
+
+```json
+{
+  "message": "str - Error message"
+}
+```
+
+#### 429: Too Many Requests
+
+```json
+{
+  "message": "str - Error message"
+}
+```
+
 ## `POST /appeals`
 
 ### Header Schema
@@ -46,6 +107,7 @@ Invalid inputs:
 
 - Missing required fields
 - Content of given ID not found
+- Content of given ID is not the creator's
 - Invalid desired label
 - Desired label matches current label
 - Reason is empty

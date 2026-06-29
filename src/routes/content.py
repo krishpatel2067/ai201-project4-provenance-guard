@@ -20,9 +20,9 @@ content_bp = Blueprint("content", __name__)
 
 
 @content_bp.route("/content", methods=["POST"])
-@require_auth
+@require_auth()
 @rate_limit("POST /content")
-def create_content(creator_id: str):
+def create_content(bearer: str):
     body = request.get_json(silent=True) or {}
 
     # --- Validate ---
@@ -31,12 +31,12 @@ def create_content(creator_id: str):
 
     if not content_text:
         write_log(
-            "Rejected content submission: missing content", {"creator_id": creator_id}
+            "Rejected content submission: missing content", {"creator_id": bearer}
         )
         return jsonify({"message": "Missing required field: content"}), 400
     if len(content_text) > 100_000:
         write_log(
-            "Rejected content submission: content too long", {"creator_id": creator_id}
+            "Rejected content submission: content too long", {"creator_id": bearer}
         )
         return jsonify({"message": "Content exceeds 100,000 character limit"}), 400
 
@@ -71,7 +71,7 @@ def create_content(creator_id: str):
                VALUES (?, ?, ?, ?, ?, 'submitted', ?, ?, ?, ?, ?, ?, ?)""",
             (
                 content_id,
-                creator_id,
+                bearer,
                 submitted_at,
                 content_text,
                 metadata_str,
@@ -87,7 +87,7 @@ def create_content(creator_id: str):
 
     record = {
         "content_id": content_id,
-        "creator_id": creator_id,
+        "creator_id": bearer,
         "submitted_at": submitted_at,
         "status": "submitted",
         "confidence_score": confidence,

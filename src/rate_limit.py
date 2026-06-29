@@ -9,6 +9,7 @@ _RATE_LIMITS = {
     "POST /content": (3, 15),
     "POST /appeals": (3, 18),
     "POST /creators": (1, 5),
+    "GET /logs": (10, 100),
 }
 
 
@@ -67,16 +68,16 @@ def _check_rate_limit(identity: str, endpoint: str):
 def rate_limit(endpoint_key: str):
     """Decorator: checks rate limit before executing the route handler.
 
-    Uses creator_id (from kwargs injected by @require_auth) when available,
-    otherwise falls back to the client IP address.
+    Uses bearer (creator ID or admin ID, from kwargs injected by @require_auth)
+    when available, otherwise falls back to the client IP address.
     """
 
     def decorator(f):
         @wraps(f)
         def wrapper(*args, **kwargs):
-            creator_id = kwargs.get("creator_id")
-            if creator_id:
-                allowed, msg = _check_rate_limit(creator_id, endpoint_key)
+            bearer = kwargs.get("bearer")
+            if bearer:
+                allowed, msg = _check_rate_limit(bearer, endpoint_key)
             else:
                 ip = request.remote_addr or "unknown"
                 allowed, msg = _check_rate_limit(ip, endpoint_key)

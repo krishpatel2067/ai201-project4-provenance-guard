@@ -11,9 +11,9 @@ appeals_bp = Blueprint("appeals", __name__)
 
 
 @appeals_bp.route("/appeals", methods=["POST"])
-@require_auth
+@require_auth()
 @rate_limit("POST /appeals")
-def create_appeal(creator_id: str):
+def create_appeal(bearer: str):
     body = request.get_json(silent=True) or {}
 
     # --- Validate ---
@@ -35,7 +35,7 @@ def create_appeal(creator_id: str):
         ]
         write_log(
             "Rejected appeal: missing fields",
-            {"creator_id": creator_id, "missing": missing},
+            {"creator_id": bearer, "missing": missing},
         )
         return (
             jsonify({"message": f"Missing required field(s): {', '.join(missing)}"}),
@@ -45,7 +45,7 @@ def create_appeal(creator_id: str):
     if desired_label not in VALID_LABELS:
         write_log(
             "Rejected appeal: invalid desired label",
-            {"creator_id": creator_id, "desired_label": desired_label},
+            {"creator_id": bearer, "desired_label": desired_label},
         )
         return (
             jsonify(
@@ -57,34 +57,45 @@ def create_appeal(creator_id: str):
         )
 
     if len(reason) > 2500:
-        write_log("Rejected appeal: reason too long", {"creator_id": creator_id})
+        write_log("Rejected appeal: reason too long", {"creator_id": bearer})
         return jsonify({"message": "Reason exceeds 2,500 character limit"}), 400
 
     # Look up the content
     with get_db(DB_CONTENT) as conn:
         content_row = conn.execute(
-            "SELECT content_id, label, status FROM content WHERE content_id = ?",
+            "SELECT content_id, creator_id, label, status FROM content WHERE content_id = ?",
             (content_id,),
         ).fetchone()
 
     if not content_row:
         write_log(
             "Rejected appeal: content not found",
-            {"creator_id": creator_id, "content_id": content_id},
+            {"creator_id": bearer, "content_id": content_id},
         )
         return jsonify({"message": "Content not found"}), 400
+
+    if content_row["creator_id"] != bearer:
+        write_log(
+            "Rejected appeal: content belongs to a different creator",
+            {
+                "request_creator_id": bearer,
+                "content_creator_id": content_row["creator_id"],
+                "content_id": content_id,
+            },
+        )
+        return jsonify({"message": "Content belongs to a different creator"}), 400
 
     if content_row["label"] == desired_label:
         write_log(
             "Rejected appeal: desired label matches current label",
-            {"creator_id": creator_id, "content_id": content_id},
+            {"creator_id": bearer, "content_id": content_id},
         )
         return jsonify({"message": "Desired label matches the current label"}), 400
 
     if content_row["status"] == "under_review":
         write_log(
             "Rejected appeal: content already under review",
-            {"creator_id": creator_id, "content_id": content_id},
+            {"creator_id": bearer, "content_id": content_id},
         )
         return jsonify({"message": "This content is already under review"}), 400
 
