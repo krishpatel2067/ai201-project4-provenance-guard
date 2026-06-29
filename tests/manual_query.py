@@ -1,5 +1,9 @@
+"""
+Offers CLI-style SQLite querying for manual database testing. Supports storing
+and cycling through query history with arrow keys like the terminal.
+"""
+
 import json
-import os
 import sqlite3
 import sys
 from pathlib import Path
