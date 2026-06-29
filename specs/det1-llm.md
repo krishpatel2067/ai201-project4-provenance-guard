@@ -17,12 +17,9 @@
 
 ## Output
 
-A `dict` with keys:
-
-| Key          | Type    | Description                                      |
+| Return Value | Type    | Description                                      |
 | ------------ | ------- | ------------------------------------------------ |
 | `score`      | `float` | Score reflecting whether content is AI-generated |
-| `sub_scores` | `dict`  | Sub-score for each composition category          |
 
 ## System Prompt
 
@@ -68,6 +65,8 @@ The combined score will then reflect the following breakdown:
 | `0.0 <= score < 0.4`  | Likely AI      |
 | `0.4 <= score < 0.6`  | Uncertain      |
 | `0.6 <= score <= 1.0` | Likely human   |
+
+<!-- TODO: add logging section -->
 
 ## Error Handling
 

@@ -1,8 +1,25 @@
+import math
 import os
 import re
+import string
+
 from groq import Groq
 
 from log import write_log
+
+# Detection signal 2 (stylometric heuristics) constants
+_STYLO_WEIGHTS = {
+    "paragraph_size_diversity": 0.1,
+    "vocabulary_diversity": 0.1,
+    "punctuation_diversity": 0.2,
+    "sentence_length_variance": 0.3,
+    "common_word_ratio": 0.3,
+}
+_COMMON_WORDS_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "data", "top_1k_common_words.txt"
+)
+with open(_COMMON_WORDS_PATH) as _f:
+    _COMMON_WORDS: set[str] = {line.strip().lower() for line in _f if line.strip()}
 
 # Detection signal 1 (LLM) constants
 _LLM_WEIGHTS = {
@@ -36,6 +53,7 @@ Progression: Score: <0-1 score> Reason: <1-sentence reason>"""
 _client = Groq(api_key=os.environ["GROQ_API_KEY"])
 
 
+# [TODO] log subscores and reasons
 def detect_llm(content: str) -> float:
     """Signal 1: LLM-based detection. Returns 0-1 score."""
     if len(content) < 100:
@@ -103,10 +121,86 @@ def detect_llm(content: str) -> float:
         return 0.5
 
 
+# [TODO] verify both formulas]
+def _gini(values: list[float]) -> float:
+    """Gini coefficient of a list of non-negative values. Returns 0 (uniform) to 1 (max diversity)."""
+    if len(values) < 2:
+        return 0.0
+    s = sorted(values)
+    n = len(s)
+    total = sum(s)
+    if total == 0:
+        return 0.0
+    cumsum = sum((i + 1) * v for i, v in enumerate(s))
+    return (2 * cumsum) / (n * total) - (n + 1) / n
+
+
+def _normalized_entropy(freq_map: dict) -> float:
+    """Shannon entropy normalized by log(N). Returns 0 (uniform) to 1 (max diversity)."""
+    counts = list(freq_map.values())
+    n = sum(counts)
+    if n == 0 or len(counts) < 2:
+        return 0.0
+    entropy = -sum((c / n) * math.log(c / n) for c in counts if c > 0)
+    return entropy / math.log(len(counts))
+
+
+# [TODO] verify word splitting pattern
+# [TODO] log subscores
 def detect_stylo_heuristics(content: str) -> float:
     """Signal 2: Stylometric heuristics. Returns 0-1 score."""
-    # TODO: implement in M4
-    return 0.5
+    if len(content) < 100:
+        write_log(
+            "Signal 2 (stylo_heuristics): Content too short — returning fallback 0.5",
+            {"content": content},
+            severity="warning",
+        )
+        return 0.5
+
+    # Paragraph size diversity: Gini of paragraph char lengths
+    paragraphs = [p for p in content.split("\n\n") if p.strip()]
+    para_score = _gini([float(len(p)) for p in paragraphs])
+
+    # Vocabulary diversity: normalized entropy of word frequencies
+    words = re.findall(r"\b[a-zA-Z']+\b", content.lower())
+    word_freq: dict[str, int] = {}
+    for w in words:
+        word_freq[w] = word_freq.get(w, 0) + 1
+    vocab_score = _normalized_entropy(word_freq)
+
+    # Punctuation diversity: normalized entropy of punctuation char frequencies
+    punct_freq: dict[str, int] = {}
+    for ch in content:
+        if ch in string.punctuation:
+            punct_freq[ch] = punct_freq.get(ch, 0) + 1
+    punct_score = _normalized_entropy(punct_freq)
+
+    # Sentence length variance: Gini of sentence word counts
+    sentences = [s.strip() for s in re.split(r"[.!?]+", content) if s.strip()]
+    sent_lengths = [float(len(re.findall(r"\b[a-zA-Z']+\b", s))) for s in sentences]
+    sent_score = _gini(sent_lengths)
+
+    # Common-word ratio: fraction of words in top-1k list, inverted (AI uses more)
+    if words:
+        common_count = sum(1 for w in words if w in _COMMON_WORDS)
+        common_ratio = common_count / len(words)
+        common_score = 1.0 - common_ratio
+    else:
+        common_score = 0.5
+
+    sub_scores = {
+        "paragraph_size_diversity": para_score,
+        "vocabulary_diversity": vocab_score,
+        "punctuation_diversity": punct_score,
+        "sentence_length_variance": sent_score,
+        "common_word_ratio": common_score,
+    }
+    result = sum(_STYLO_WEIGHTS[k] * sub_scores[k] for k in _STYLO_WEIGHTS)
+    write_log(
+        "Signal 2 (stylo_heuristics): Scored content",
+        {"sub_scores": sub_scores, "result": result},
+    )
+    return result
 
 
 def detect_pos_dist(content: str) -> float:
