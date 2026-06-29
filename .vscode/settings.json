@@ -4,12 +4,12 @@
     {
       "languageId": "markdown",
       "caseSensitive": true,
-      "words": ["Groq", "Gini"]
+      "words": ["Groq", "Gini", "stylo"]
     },
     {
       "languageId": "python",
       "caseSensitive": true,
-      "words": ["groq"]
+      "words": ["groq", "stylo"]
     },
   ]
 }
