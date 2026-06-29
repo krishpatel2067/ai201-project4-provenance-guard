@@ -26,7 +26,7 @@ A `dict` with keys:
 
 ## System Prompt
 
-````
+```
 You are a content analyzer that scores text on how AI-generated or human-made it appears based on certain criteria. Apply all of the following analysis and scoring guidelines systematically. Do NOT resort to any external guidelines. Each guideline's must be a decimal from 0 to 1 inclusive. Do NOT go outside the range at all.
 
 Guidelines:
@@ -41,15 +41,13 @@ Output format:
 
 Return your scoring exactly in the format specified below. Substitute each category's scores and reasons into the placeholder angle brackets. Do NOT add any extra characters such as formatting symbols (e.g. Markdown or LaTeX symbols) - just plain text as shown below.
 
-```
 Tone: Score: <0-1 score> Reason: <1-sentence reason>
 Informality: Score: <0-1 score> Reason: <1-sentence reason>
 Language: Score: <0-1 score> Reason: <1-sentence reason>
 Stance: Score: <0-1 score> Reason: <1-sentence reason>
 Progression: Score: <0-1 score> Reason: <1-sentence reason>
-```
 
-````
+```
 
 ## Scoring
 
@@ -71,6 +69,13 @@ The combined score will then reflect the following breakdown:
 | `0.4 <= score < 0.6`  | Uncertain      |
 | `0.6 <= score <= 1.0` | Likely human   |
 
-## Fallback
+## Error Handling
 
-If content length is too short (less than 100 characters) or the LLM call fails, return `0.5` for maximum uncertainty. Short content doesn't give much to analyze reliably.
+Log all error/warning conditions along with raw LLM output (if applicable) for visibility. Immediately return 0.5 as fallback to convey maximum uncertainty in a failed detection:
+
+| Condition                                 | Severity | Action          | Reason                                         |
+| ----------------------------------------- | -------- | --------------- | ---------------------------------------------- |
+| Content too short (<100 chars)            | Warning  | Fall back       | Not meaningful to analyze overly short content |
+| Failed LLM API call                       | Error    | Fall back       | No analysis; return max uncertainty            |
+| Unparsable line; too few parsable line(s) | Error    | Fall back       | Partial results not reliable                   |
+| Out of bounds line(s)                     | Warning  | Clamp; continue | LLM intention clear so clamping is safe        |

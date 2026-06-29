@@ -4,6 +4,8 @@
 
 ## Tech Stack
 
+## Project Structure
+
 ## Architecture
 
 ## Detection Signals
