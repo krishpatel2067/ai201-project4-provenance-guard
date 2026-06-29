@@ -66,7 +66,12 @@ The combined score will then reflect the following breakdown:
 | `0.4 <= score < 0.6`  | Uncertain      |
 | `0.6 <= score <= 1.0` | Likely human   |
 
-<!-- TODO: add logging section -->
+## Logging
+
+The signal will log:
+
+- All the sub-scores along with the LLM-provided reason
+- Any error, warning, and success conditions
 
 ## Error Handling
 

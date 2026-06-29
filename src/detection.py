@@ -7,21 +7,7 @@ from groq import Groq
 
 from log import write_log
 
-# Detection signal 2 (stylometric heuristics) constants
-_STYLO_WEIGHTS = {
-    "paragraph_size_diversity": 0.1,
-    "vocabulary_diversity": 0.1,
-    "punctuation_diversity": 0.2,
-    "sentence_length_variance": 0.3,
-    "common_word_ratio": 0.3,
-}
-_COMMON_WORDS_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "data", "top_1k_common_words.txt"
-)
-with open(_COMMON_WORDS_PATH) as _f:
-    _COMMON_WORDS: set[str] = {line.strip().lower() for line in _f if line.strip()}
-
-# Detection signal 1 (LLM) constants
+# ----- Detection signal 1 (LLM) constants -------------------------------------
 _LLM_WEIGHTS = {
     "Tone": 0.1,
     "Informality": 0.2,
@@ -52,8 +38,24 @@ Stance: Score: <0-1 score> Reason: <1-sentence reason>
 Progression: Score: <0-1 score> Reason: <1-sentence reason>"""
 _client = Groq(api_key=os.environ["GROQ_API_KEY"])
 
+# ----- Detection signal 2 (stylometric heuristics) constants ------------------
+_STYLO_WEIGHTS = {
+    "paragraph_size_diversity": 0.1,
+    "vocabulary_diversity": 0.1,
+    "punctuation_diversity": 0.2,
+    "sentence_length_variance": 0.3,
+    "common_word_ratio": 0.3,
+}
+_COMMON_WORDS_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "data", "top_1k_common_words.txt"
+)
+with open(_COMMON_WORDS_PATH) as _f:
+    _COMMON_WORDS: set[str] = {line.strip().lower() for line in _f if line.strip()}
 
-# [TODO] log subscores and reasons
+
+# ------------------------------------------------------------------------------
+# Detection signal 1 (LLM) implementation
+# ------------------------------------------------------------------------------
 def detect_llm(content: str) -> float:
     """Signal 1: LLM-based detection. Returns 0-1 score."""
     if len(content) < 100:
@@ -79,7 +81,9 @@ def detect_llm(content: str) -> float:
         for i, line in enumerate(text.strip().splitlines(), start=1):
             if not line.strip():
                 continue
-            match = re.match(r"^(\w+):\s*Score:\s*([0-9.]+)", line, re.IGNORECASE)
+            match = re.match(
+                r"^(\w+):\s*Score:\s*([0-9.]+)\s*Reason:\s*(.+)", line, re.IGNORECASE
+            )
             if not match:
                 write_log(
                     f"Signal 1 (LLM): Unparsable line {i} — returning fallback 0.5",
@@ -87,7 +91,11 @@ def detect_llm(content: str) -> float:
                     severity="error",
                 )
                 return 0.5
-            category, value = match.group(1).title(), float(match.group(2))
+            category, value, reason = (
+                match.group(1).title(),
+                float(match.group(2)),
+                match.group(3).strip(),
+            )
             if category in _LLM_WEIGHTS:
                 if not (0.0 <= value <= 1.0):
                     write_log(
@@ -95,7 +103,10 @@ def detect_llm(content: str) -> float:
                         {"category": category, "value": value, "raw_text": raw_text},
                         severity="warning",
                     )
-                scores[category] = max(0.0, min(1.0, value))
+                scores[category] = {
+                    "score": max(0.0, min(1.0, value)),
+                    "reason": reason,
+                }
 
         if len(scores) != 5:
             write_log(
@@ -105,7 +116,7 @@ def detect_llm(content: str) -> float:
             )
             return 0.5
 
-        result = sum(_LLM_WEIGHTS[cat] * scores[cat] for cat in _LLM_WEIGHTS)
+        result = sum(_LLM_WEIGHTS[cat] * scores[cat]["score"] for cat in _LLM_WEIGHTS)
         write_log(
             "Signal 1 (LLM): Scored content",
             {"scores": scores, "result": result, "raw_text": raw_text},
@@ -121,7 +132,9 @@ def detect_llm(content: str) -> float:
         return 0.5
 
 
-# [TODO] verify both formulas]
+# ------------------------------------------------------------------------------
+# Detection signal 2 (Stylometric heuristics) implementation
+# ------------------------------------------------------------------------------
 def _gini(values: list[float]) -> float:
     """Gini coefficient of a list of non-negative values. Returns 0 (uniform) to 1 (max diversity)."""
     if len(values) < 2:
@@ -145,8 +158,6 @@ def _normalized_entropy(freq_map: dict) -> float:
     return entropy / math.log(len(counts))
 
 
-# [TODO] verify word splitting pattern
-# [TODO] log subscores
 def detect_stylo_heuristics(content: str) -> float:
     """Signal 2: Stylometric heuristics. Returns 0-1 score."""
     if len(content) < 100:

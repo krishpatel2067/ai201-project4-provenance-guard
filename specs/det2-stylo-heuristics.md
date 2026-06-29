@@ -59,8 +59,17 @@ The combined score will then reflect the following breakdown:
 | `0.4 <= score < 0.6`  | Uncertain      |
 | `0.6 <= score <= 1.0` | Likely human   |
 
-<!-- TODO: update to Error Handling -->
+## Logging
 
-## Fallback
+The signal will log:
 
-If the content is too short (below 100 characters), return `0.5` for maximum uncertainty since stylometric results aren't too meaningful.
+- All the sub-scores
+- Any error, warning, and success conditions
+
+## Error Handling
+
+Immediately return 0.5 as fallback to convey maximum uncertainty in a failed detection:
+
+| Condition                      | Severity | Action    | Reason                                         |
+| ------------------------------ | -------- | --------- | ---------------------------------------------- |
+| Content too short (<100 chars) | Warning  | Fall back | Not meaningful to analyze overly short content |
