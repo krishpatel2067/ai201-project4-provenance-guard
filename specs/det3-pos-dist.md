@@ -34,8 +34,8 @@ Use the `textblob` library to perform POS analysis.
 ### Neutrality
 
 1. Get the total number of words in the content.
-2. Calculate the count of passive constructions (i.e. modal/auxiliary verb immediately followed by a past participle).
-3. Calculate the ratio of passive constructions to total words.
+2. Calculate the count of passive constructions (e.g. "he is led", "he was led", "he will have been led", etc.).
+3. Calculate the ratio of passive constructions to total words, capped to `1.0`.
 4. Invert the ratio (`1 - ratio`) so that 0 = AI-generated.
 
 ### Extremeness
@@ -54,7 +54,7 @@ Use the `textblob` library to perform POS analysis.
 
 1. Count the number of coordinate conjunctions and subordinate conjunctions.
 2. Count the number of sentences.
-3. Calculate the ratio of conjunctions to sentences.
+3. Calculate the ratio of conjunctions to sentences, capped to `1.0`.
 4. Invert this ratio (`1 - ratio`) so that 0 = AI-generated.
 
 ## Scoring
@@ -67,6 +67,18 @@ All 5 category sub-scores will be combined via an unweighted average. The combin
 | `0.4 <= score < 0.6`  | Uncertain      |
 | `0.6 <= score <= 1.0` | Likely human   |
 
-## Fallback
+## Logging
 
-If the content is too short (below 100 characters), return `0.5` since no results are meaningful on such little text.
+The signal will log:
+
+- All the sub-scores
+- Any error, warning, and success conditions
+
+## Error Handling
+
+Immediately return 0.5 as fallback to convey maximum uncertainty in a failed detection:
+
+| Condition                      | Severity | Action                  | Reason                                         |
+| ------------------------------ | -------- | ----------------------- | ---------------------------------------------- |
+| Content too short (<100 chars) | Warning  | Fall back               | Not meaningful to analyze overly short content |
+| Zero-division imminent         | Warning  | Use ratio 0.5; continue | Rare case that shouldn't halt everything       |

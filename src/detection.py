@@ -4,6 +4,7 @@ import re
 import string
 
 from groq import Groq
+from textblob import TextBlob
 
 from log import write_log
 
@@ -214,10 +215,123 @@ def detect_stylo_heuristics(content: str) -> float:
     return result
 
 
+# ------------------------------------------------------------------------------
+# Detection signal 3 (Part-of-speech distribution) implementation
+# ------------------------------------------------------------------------------
 def detect_pos_dist(content: str) -> float:
     """Signal 3: Part-of-speech distribution. Returns 0-1 score."""
-    # TODO: implement in M4
-    return 0.5
+    if len(content) < 100:
+        write_log(
+            "Signal 3 (pos_dist): Content too short — returning fallback 0.5",
+            {"content": content},
+            severity="warning",
+        )
+        return 0.5
+
+    blob = TextBlob(content)
+    tags = blob.tags
+
+    pronoun_tags = {"PRP", "PRP$", "WP", "WP$"}
+    adjective_tags = {"JJ", "JJR", "JJS"}
+    verb_tags = {"VB", "VBD", "VBG", "VBN", "VBP", "VBZ"}
+    noun_tags = {"NN", "NNS", "NNP", "NNPS"}
+    aux_tags = {"MD", "VBZ", "VBP", "VBD"}
+    inter_tags = {"VB", "VBN", "VBG", "RB", "RBR", "RP"}
+    coord_conj_tags = {"CC"}
+    subord_conj_tags = {"IN", "WRB"}
+
+    pronouns = sum(1 for _, t in tags if t in pronoun_tags)
+    adjectives = sum(1 for _, t in tags if t in adjective_tags)
+    verbs = sum(1 for _, t in tags if t in verb_tags)
+    nouns = sum(1 for _, t in tags if t in noun_tags)
+    comparatives = sum(1 for _, t in tags if t in {"JJR", "RBR"})
+    superlatives = sum(1 for _, t in tags if t in {"JJS", "RBS"})
+    conjunctions = sum(1 for _, t in tags if t in coord_conj_tags | subord_conj_tags)
+
+    # Passive construction: VBN preceded (within 4 tokens) by an aux,
+    # with only valid intermediates between them.
+    passive_count = 0
+    for i, (_, tag) in enumerate(tags):
+        if tag == "VBN":
+            for j in range(max(0, i - 4), i):
+                if tags[j][1] in aux_tags:
+                    if all(tags[k][1] in inter_tags for k in range(j + 1, i)):
+                        passive_count += 1
+                        break
+
+    total_words = len([w for w in content.split() if w.strip()])
+    sentence_count = len(blob.sentences)
+
+    # Subjectivity: pronoun/adjective ratio (0 = AI, 1 = human)
+    if adjectives > 0:
+        subjectivity = min(pronouns / adjectives, 1.0)
+    else:
+        write_log(
+            "Signal 3 (pos_dist): No adjectives found for subjectivity — using fallback 0.5",
+            {"content": content},
+            severity="warning",
+        )
+        subjectivity = 0.5
+
+    # Neutrality: 1 - passive ratio (0 = AI, 1 = human)
+    if total_words > 0:
+        passive_ratio = min(passive_count / total_words, 1.0)
+        neutrality = 1.0 - passive_ratio
+    else:
+        write_log(
+            "Signal 3 (pos_dist): No words found for neutrality — using fallback 0.5",
+            {"content": content},
+            severity="warning",
+        )
+        neutrality = 0.5
+
+    # Extremeness: superlative/comparative ratio (0 = AI, 1 = human)
+    if comparatives > 0:
+        extremeness = min(superlatives / comparatives, 1.0)
+    else:
+        write_log(
+            "Signal 3 (pos_dist): No comparatives found for extremeness — using fallback 0.5",
+            {"content": content},
+            severity="warning",
+        )
+        extremeness = 0.5
+
+    # Dynamism: verb/noun ratio (0 = AI, 1 = human)
+    if nouns > 0:
+        dynamism = min(verbs / nouns, 1.0)
+    else:
+        write_log(
+            "Signal 3 (pos_dist): No nouns found for dynamism — using fallback 0.5",
+            {"content": content},
+            severity="warning",
+        )
+        dynamism = 0.5
+
+    # Complexity: 1 - conjunction/sentence ratio (0 = AI, 1 = human)
+    if sentence_count > 0:
+        conj_ratio = min(conjunctions / sentence_count, 1.0)
+        complexity = 1.0 - conj_ratio
+    else:
+        write_log(
+            "Signal 3 (pos_dist): No sentences found for complexity — using fallback 0.5",
+            {"content": content},
+            severity="warning",
+        )
+        complexity = 0.5
+
+    sub_scores = {
+        "subjectivity": subjectivity,
+        "neutrality": neutrality,
+        "extremeness": extremeness,
+        "dynamism": dynamism,
+        "complexity": complexity,
+    }
+    result = sum(sub_scores.values()) / len(sub_scores)
+    write_log(
+        "Signal 3 (pos_dist): Scored content",
+        {"sub_scores": sub_scores, "result": result},
+    )
+    return result
 
 
 def combine_scores(llm: float, stylo: float, pos: float) -> float:
