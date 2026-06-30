@@ -110,6 +110,22 @@ def other_creator_id(client):
 
 
 @pytest.fixture
+def admin_creator_id():
+    """
+    Inserts TEST_ADMIN_ID into the creators DB so _is_creator() passes for it.
+    TEST_ADMIN_ID is already in auth.admin_ids via isolated_dbs, so this makes
+    it valid for both creator-auth and admin-auth endpoints.
+    """
+    from datetime import datetime, timezone
+    with db.get_db(db.DB_CREATORS) as conn:
+        conn.execute(
+            "INSERT INTO creators (creator_id, joined_at, email) VALUES (?, ?, ?)",
+            (TEST_ADMIN_ID, datetime.now(timezone.utc).isoformat(), "admin@example.com"),
+        )
+    return TEST_ADMIN_ID
+
+
+@pytest.fixture
 def content_id(client, creator_id):
     """Submits a minimal piece of content and returns its ID."""
     resp = client.post(
