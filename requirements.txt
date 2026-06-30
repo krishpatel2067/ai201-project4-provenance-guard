@@ -5,3 +5,4 @@ python-dotenv==1.0.1
 textblob==0.20.0
 gradio==6.19.0
 pandas==3.0.3
+pytest==9.1.1

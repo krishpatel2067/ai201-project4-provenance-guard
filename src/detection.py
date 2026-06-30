@@ -2,11 +2,16 @@ import math
 import os
 import re
 import string
+from pathlib import Path
+from dotenv import load_dotenv
 
 from groq import Groq
 from textblob import TextBlob
 
 from log import write_log
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(dotenv_path=ROOT_DIR / ".env")
 
 # ----- Detection signal 1 (LLM) constants -------------------------------------
 _LLM_WEIGHTS = {

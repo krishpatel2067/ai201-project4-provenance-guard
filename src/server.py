@@ -6,6 +6,7 @@ from log import init_log_file
 from routes.appeals import appeals_bp
 from routes.content import content_bp
 from routes.creators import creators_bp
+from routes.logs import logs_bp
 
 app = Flask(__name__)
 
@@ -13,12 +14,14 @@ app = Flask(__name__)
 app.register_blueprint(appeals_bp)
 app.register_blueprint(content_bp)
 app.register_blueprint(creators_bp)
-# [TODO] get logs endpoint
+app.register_blueprint(logs_bp)
+
 
 # 404 catchall
 @app.errorhandler(404)
 def api_not_found(e):
     return jsonify(error="Resource not found"), 404
+
 
 # Entry point
 

@@ -108,6 +108,7 @@ Invalid inputs:
 - Missing required fields
 - Content of given ID not found
 - Content of given ID is not the creator's
+- Content of given ID is already under review
 - Invalid desired label
 - Desired label matches current label
 - Reason is empty
@@ -146,7 +147,7 @@ When creator ID is missing from the header or invalid.
 ```json
 {
   "content": "str - User's actual creative content",
-  "metadata": "dict - Metadata collected about the content and its creation"
+  "metadata": "dict | null - Metadata collected about the content and its creation"
 }
 ```
 

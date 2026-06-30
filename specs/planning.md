@@ -408,17 +408,17 @@ Appeals db          Content db          Logs JSONL
 
 - Use pytest
 - Test endpoints:
-  - Input validation for all endpoints and for all invalid inputs listed in [`endpoints.md`](./endpoints.md)
-  - Auth for all applicable endpoints
-  - Rate limiting for all endpoints
+  - All invalid inputs listed in [`endpoints.md`](./endpoints.md) are rejected by the respective endpoints
+  - Auth is enforced for all applicable endpoints (e.g. not `POST /creators`)
+  - All endpoints uphold rate limiting
   - Success conditions:
     - `GET /logs`: `tail=n` logs are returned when the log file has that many
     - `POST /appeals`: Appeal is stored in the appeals database and content is marked under review
     - `POST /content`: Content is stored in the content database
     - `POST /creators`: Creator is stored in the creators database
 - Test detection signals:
-  - All fallback cases (e.g. immediate returns of 0.5) for each detection signal
-  - Metadata effect on attaining certificate
+  - Immediately returns (a sentinel value, often 0.5) for fallback cases for each detection signal
+  - Metadata (both adequate and inadequate) affects whether a certificate is granted
   - Special transparency label appears after attaining certificate
   - Clearly human content leads to human transparency label and >=0.6 confidence score
 
