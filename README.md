@@ -1,5 +1,11 @@
 # Provenance Guard
 
+_Krish A. Patel_
+
+_CodePath AI201: Applications of AI Engineering Project 4 (Summer 2026)_
+
+In the age of AI, an online content sharing platform needs to show what content is human-made and which is AI-generated - not because creativity can't square with AI-generation but for ensuring transparency to content consumers. This requires a robust backend that not only classifies content, but connects with the frontend via endpoints, implements basic authentication and rate limiting, and logs all events for accountability. Enter Provenance Guard, a learning project with all of these features (and more). While the detector pipeline isn't perfect, it's a glimpse at how production-grade systems combine multiple signals to enhance detection accuracy.
+
 ## Setup
 
 1. Create a virtual environment:
