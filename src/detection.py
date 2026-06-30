@@ -4,6 +4,10 @@ import re
 import string
 from pathlib import Path
 from dotenv import load_dotenv
+import nltk
+
+for _corpus in ("punkt", "punkt_tab", "averaged_perceptron_tagger", "averaged_perceptron_tagger_eng"):
+    nltk.download(_corpus, quiet=True)
 
 from groq import Groq
 from textblob import TextBlob
