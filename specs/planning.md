@@ -45,12 +45,9 @@ Likely AI                     +-- Uncertain --+                  Likely human
 ## Provenance Certificate
 
 - Creators can apply for a provenance ("verified human") certificate for a particular content if:
-  - They express their intent (via the `GET /verified-human-certificate`)
   - They used the first-party in-app editor to write their entire draft
   - They did not paste anything from outside the app while editing the draft
   - They spent reasonably enough time in the editor across a reasonable number of sessions
-  - Their content that contains no watermarks
-  - Their content passes plagiarism tests
 - Advantage:
   - Boosts their confidence score
   - If the resulting score is in the likely-human range, then a special "verified" transparency label that carries more weight than a "likely human" one: "Verified human - this content is most likely human-made."
@@ -74,8 +71,6 @@ Likely AI                     +-- Uncertain --+                  Likely human
   - **First-party in-app editor**: The hypothetical first-party app would have an editor to track info necessary to distinguish human creation (keystrokes, copy-pastes, session lengths, etc.). It would also have deeper permissions than a web app, allowing more secure data collection and lowering the chances of client-side metadata tampering
   - **Copy-pasting**: A true human creation most often doesn't require copy-pasting from outside sources - it should all be organically typed.
   - **Session time and count**: Genuine human creations take a lot of time to make and usually multiple sessions for inspiration to strike and iterate on the draft - much different than the few minutes of AI-generation and proofreading in a single session.
-  - **Watermarks**: A hidden watermark that AI can embed into its output text is zero-width Unicode characters - not rendered at all but exist in the raw string, which couldn't be typed naturally let alone when humans write creative works
-  - **Plagiarism tests**: Human works are usually original works if the author doesn't consult outside sources, especially AI. One caveat: can't check against private chats.
 
 ## Appeals
 

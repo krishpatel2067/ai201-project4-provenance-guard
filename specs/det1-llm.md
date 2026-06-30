@@ -43,7 +43,6 @@ Informality: Score: <0-1 score> Reason: <1-sentence reason>
 Language: Score: <0-1 score> Reason: <1-sentence reason>
 Stance: Score: <0-1 score> Reason: <1-sentence reason>
 Progression: Score: <0-1 score> Reason: <1-sentence reason>
-
 ```
 
 ## Scoring
