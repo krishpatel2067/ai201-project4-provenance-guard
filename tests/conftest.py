@@ -110,6 +110,31 @@ def other_creator_id(client):
 
 
 @pytest.fixture
+def fake_clock(monkeypatch):
+    """
+    Replaces datetime.now() inside rate_limit with a controllable fake.
+    Defined inside the fixture so each test gets a fresh class with _now reset,
+    preventing state bleed between tests.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    class FakeDatetime:
+        _now = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
+
+        @classmethod
+        def now(cls, *_):
+            return cls._now
+
+        @classmethod
+        def advance_minute(cls):
+            cls._now = cls._now + timedelta(minutes=1)
+
+    import rate_limit
+    monkeypatch.setattr(rate_limit, "datetime", FakeDatetime)
+    return FakeDatetime
+
+
+@pytest.fixture
 def admin_creator_id():
     """
     Inserts TEST_ADMIN_ID into the creators DB so _is_creator() passes for it.
