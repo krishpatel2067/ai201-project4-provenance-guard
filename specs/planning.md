@@ -420,17 +420,12 @@ Appeals db          Content db          Logs JSONL
   - Immediately returns (a sentinel value, often 0.5) for fallback cases for each detection signal
   - Metadata (both adequate and inadequate) affects whether a certificate is granted
   - Special transparency label appears after attaining certificate
-  - Clearly human content leads to human transparency label and >=0.6 confidence score
+  - Clearly human content leads to human transparency label and >= 0.6 confidence score (or non-AI label and >= 0.5 score at worst)
 
   > "ok so i finally tried that new ramen place downtown and honestly? underwhelming. the broth was fine but they put WAY too much sodium in it and i was thirsty for like three hours after. my friend got the spicy version and said it was better. probably won't go back unless someone drags me there"
-  - Clearly AI content leads to AI transparency label and <=0.4 confidence score
+  - Clearly AI content leads to AI transparency label and <= 0.4 confidence score (or non-human label and <= 0.5 score at worst)
 
   > "Artificial intelligence represents a transformative paradigm shift in modern society. It is important to note that while the benefits of AI are numerous, it is equally essential to consider the ethical implications. Furthermore, stakeholders across various sectors must collaborate to ensure responsible deployment."
-  - Ambiguous examples lead to uncertain scores and labels:
-
-  > "The relationship between monetary policy and asset price inflation has been extensively studied in the literature. Central banks face a fundamental tension between their mandate for price stability and the unintended consequences of prolonged low interest rates on equity and real estate valuations."
-
-  > "I've been thinking a lot about remote work lately. There are genuine tradeoffs — flexibility and no commute on one side, isolation and blurred work-life boundaries on the other. Studies show productivity varies widely by individual and role type."
 
 ## Anticipated Edge Cases
 

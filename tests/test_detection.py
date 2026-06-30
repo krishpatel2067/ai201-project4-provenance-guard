@@ -22,10 +22,12 @@ from conftest import TEST_ADMIN_ID
 @pytest.fixture(autouse=True)
 def bypass_rate_limit(monkeypatch):
     import rate_limit
+
     monkeypatch.setattr(rate_limit, "_check_rate_limit", lambda *_: (True, ""))
 
 
 # Helpers ----------------------------------------------------------------
+
 
 def _mock_llm_resp(text: str):
     """Builds a minimal Groq-response-shaped namespace from a text string."""
@@ -54,6 +56,7 @@ LONG_CONTENT = "The quick brown fox jumps over the lazy dog. " * 10
 # 1. Fallback cases
 # -------------------------------------------------------------------------
 
+
 class TestLLMFallbacks:
     def test_short_content_returns_0_5(self):
         assert detection.detect_llm(SHORT) == 0.5
@@ -61,12 +64,14 @@ class TestLLMFallbacks:
     def test_api_exception_returns_0_5(self, monkeypatch):
         def raise_error(*args, **kwargs):
             raise RuntimeError("Groq API unavailable")
+
         monkeypatch.setattr(detection._client.chat.completions, "create", raise_error)
         assert detection.detect_llm(LONG_CONTENT) == 0.5
 
     def test_unparsable_response_line_returns_0_5(self, monkeypatch):
         monkeypatch.setattr(
-            detection._client.chat.completions, "create",
+            detection._client.chat.completions,
+            "create",
             lambda *a, **kw: _mock_llm_resp("this is not the expected format at all"),
         )
         assert detection.detect_llm(LONG_CONTENT) == 0.5
@@ -82,7 +87,8 @@ class TestLLMFallbacks:
             "Epsilon: Score: 0.75 Reason: test."
         )
         monkeypatch.setattr(
-            detection._client.chat.completions, "create",
+            detection._client.chat.completions,
+            "create",
             lambda *a, **kw: _mock_llm_resp(bad_categories),
         )
         assert detection.detect_llm(LONG_CONTENT) == 0.5
@@ -98,7 +104,8 @@ class TestLLMFallbacks:
             "Progression: Score: 0.75 Reason: Clear arc from start to finish."
         )
         monkeypatch.setattr(
-            detection._client.chat.completions, "create",
+            detection._client.chat.completions,
+            "create",
             lambda *a, **kw: _mock_llm_resp(valid_output),
         )
         result = detection.detect_llm(LONG_CONTENT)
@@ -119,6 +126,7 @@ class TestPosDistFallbacks:
 # 2 & 3. Certificate adequacy + special transparency label (combined)
 # -------------------------------------------------------------------------
 
+
 @pytest.fixture
 def mocked_signals(monkeypatch):
     """
@@ -126,9 +134,9 @@ def mocked_signals(monkeypatch):
     (combined score = 0.3, label = likely_ai without cert).
     With the provenance boost: 1 - (1-0.3)^3.25 ≈ 0.683 → likely_human.
     """
-    monkeypatch.setattr(routes.content, "detect_llm",              lambda c: 0.3)
+    monkeypatch.setattr(routes.content, "detect_llm", lambda c: 0.3)
     monkeypatch.setattr(routes.content, "detect_stylo_heuristics", lambda c: 0.3)
-    monkeypatch.setattr(routes.content, "detect_pos_dist",         lambda c: 0.3)
+    monkeypatch.setattr(routes.content, "detect_pos_dist", lambda c: 0.3)
 
 
 class TestProvenance:
@@ -151,7 +159,10 @@ class TestProvenance:
         # Response checks
         assert data["verified_human"] is True
         assert data["label"] == "likely_human"
-        assert data["transparency_label"] == "Verified human - this content is most likely human-made."
+        assert (
+            data["transparency_label"]
+            == "Verified human - this content is most likely human-made."
+        )
 
         # DB checks — verified_human stored as integer 1 in SQLite
         with db.get_db(db.DB_CONTENT) as conn:
@@ -161,7 +172,10 @@ class TestProvenance:
             ).fetchone()
         assert row["verified_human"] == 1
         assert row["label"] == "likely_human"
-        assert row["transparency_label"] == "Verified human - this content is most likely human-made."
+        assert (
+            row["transparency_label"]
+            == "Verified human - this content is most likely human-made."
+        )
 
     def test_wrong_platform_no_cert(self, client, creator_id, mocked_signals):
         meta = {**ADEQUATE_METADATA, "platform": "web_app"}
@@ -181,7 +195,9 @@ class TestProvenance:
         )
         assert resp.get_json()["verified_human"] is False
 
-    def test_too_few_qualifying_sessions_no_cert(self, client, creator_id, mocked_signals):
+    def test_too_few_qualifying_sessions_no_cert(
+        self, client, creator_id, mocked_signals
+    ):
         meta = {
             **ADEQUATE_METADATA,
             "sessions": [  # only 2 qualifying sessions instead of 3
@@ -232,6 +248,7 @@ CLEARLY_HUMAN = (
     "probably won't go back unless someone drags me there"
 )
 
+
 CLEARLY_AI = (
     "Artificial intelligence represents a transformative paradigm shift in modern "
     "society. It is important to note that while the benefits of AI are numerous, it "
@@ -250,7 +267,9 @@ class TestClassification:
         )
         assert resp.status_code == 201
         data = resp.get_json()
-        assert data["confidence_score"] >= 0.5  # 0.1 leeway around the 0.6 spec threshold
+        assert (
+            data["confidence_score"] >= 0.5
+        )  # 0.1 leeway around the 0.6 spec threshold
         assert data["label"] in {"likely_human", "uncertain"}  # must not be likely_ai
 
     def test_clearly_ai_content(self, client, creator_id):
@@ -261,6 +280,7 @@ class TestClassification:
         )
         assert resp.status_code == 201
         data = resp.get_json()
-        assert data["confidence_score"] <= 0.5  # 0.1 leeway around the 0.4 spec threshold
+        assert (
+            data["confidence_score"] <= 0.5
+        )  # 0.1 leeway around the 0.4 spec threshold
         assert data["label"] in {"likely_ai", "uncertain"}  # must not be likely_human
-
